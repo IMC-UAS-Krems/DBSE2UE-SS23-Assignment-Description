@@ -1,11 +1,11 @@
 import pytest
 from pytest_mysql import factories
+from contextlib import contextmanager
 
 # TODO Not the best practice to leave password and the like in-clear!
 mysql_in_docker = factories.mysql_noproc(host="127.0.0.1", user="root")
 # This creates also a db named test... If I am not mistaked, this is deleted after each test execution
 mysql = factories.mysql("mysql_in_docker", passwd="mypass")
-
 
 @pytest.fixture
 def your_database(mysql):
@@ -19,6 +19,41 @@ def your_database(mysql):
     cur.execute("COMMIT;")
 
     yield mysql
+
+@pytest.fixture
+def connection_factory(your_database):
+
+    @contextmanager
+    def _gen_connection():
+        """ Generate a connection to the database """
+        import mysql.connector
+        from mysql.connector import Error
+
+        try:
+            connection = mysql.connector.connect(host="127.0.0.1",
+                                                 database="test",
+                                                 user="root",
+                                                 password="mypass")
+            if connection.is_connected():
+                db_Info = connection.get_server_info()
+                print("Connected to MySQL Server version ", db_Info)
+                cursor = connection.cursor()
+                cursor.execute("select database();")
+                record = cursor.fetchone()
+                print("You're connected to database: ", record)
+
+                yield connection
+
+        except Error as e:
+            print("Error while connecting to MySQL", e)
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+                print("MySQL connection is closed")
+
+    yield _gen_connection
+
 
 
 # Taken from: https://www.tutorialspoint.com/how-to-show-all-the-tables-present-in-the-database-and-server-in-mysql-using-python
@@ -50,3 +85,62 @@ def test_cannot_insert_the_same_user_twice(your_database):
     with pytest.raises(Exception) as e_info:
         new_user.insert_into_db(your_database)
     assert e_info.typename == "IntegrityError"
+
+
+def test_phantom_reads_with_transactions(connection_factory):
+    """ Try to concurrently modify the database """
+    from solution.user import User
+    with connection_factory() as connection1, connection_factory() as connection2:
+        cursor1 = connection1.cursor()
+        cursor2 = connection2.cursor()
+
+        # Transaction 1 start - Reads all the users, and reads all the users again
+        cursor1.execute("BEGIN")
+        cursor1.execute("SELECT * FROM User;")
+        partial_result_from_transaction_1 = []
+        for username, _ in cursor1:
+            partial_result_from_transaction_1.append(username)
+
+        # Transaction 2 start - insert a user
+        cursor2.execute("BEGIN")
+        cursor2.execute(User.INSERT_USER_INTO_DB_TEMPLATE, ("Alice", "123"));
+        cursor2.execute("COMMIT")
+
+        cursor1.execute("SELECT * FROM User;")
+        final_result_from_transaction_1 = []
+        for username, _ in cursor1:
+            final_result_from_transaction_1.append(username)
+        cursor1.execute("COMMIT")
+
+        assert len(partial_result_from_transaction_1) == len(final_result_from_transaction_1)
+
+def test_sequential_transactions(connection_factory):
+    """ Try to concurrently modify the database """
+    from solution.user import User
+    with connection_factory() as connection1, connection_factory() as connection2:
+        cursor1 = connection1.cursor()
+        cursor2 = connection2.cursor()
+
+        # Transaction 1 start - Reads all the users
+        cursor1.execute("BEGIN")
+        cursor1.execute("SELECT * FROM User;")
+        partial_result_from_transaction_1 = []
+        for username, _ in cursor1:
+            partial_result_from_transaction_1.append(username)
+        cursor1.execute("COMMIT")
+
+        # Transaction 2 start - insert a user
+        cursor2.execute("BEGIN")
+        cursor2.execute(User.INSERT_USER_INTO_DB_TEMPLATE, ("Alice", "123"));
+        cursor2.execute("COMMIT")
+
+        # Transaction 3 start - Reads all the users
+        cursor1.execute("BEGIN")
+        cursor1.execute("SELECT * FROM User;")
+        final_result_from_transaction_1 = []
+        for username, _ in cursor1:
+            final_result_from_transaction_1.append(username)
+        cursor1.execute("COMMIT")
+
+        assert len(partial_result_from_transaction_1) == 0
+        assert len(final_result_from_transaction_1) == 1
