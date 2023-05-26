@@ -21,19 +21,20 @@ def your_database(mysql):
     yield mysql
 
 @pytest.fixture
-def connection_factory(your_database):
+def connection_factory(your_database, pytestconfig):
 
     @contextmanager
     def _gen_connection():
         """ Generate a connection to the database """
         import mysql.connector
         from mysql.connector import Error
-
+        # Try to create the connection, if succeeded eventually close it
+        connection = mysql.connector.connect(host="127.0.0.1",
+                                             database="test",
+                                             user="root",
+                                             port=pytestconfig.getoption("--mysql-port") if pytestconfig.getoption("--mysql-port") is not None else 3306,
+                                             password="mypass")
         try:
-            connection = mysql.connector.connect(host="127.0.0.1",
-                                                 database="test",
-                                                 user="root",
-                                                 password="mypass")
             if connection.is_connected():
                 db_Info = connection.get_server_info()
                 print("Connected to MySQL Server version ", db_Info)
