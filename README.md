@@ -37,7 +37,7 @@ This database manages informations about users of the system, customers, product
 
 > Note: Customer emails **cannot** be update
 
-When a customer is removed, all his/her orders and personal data must wiped out from the system within the next *3* days.
+When a customer is removed, all his/her orders and personal data must wiped out from the system.
 
 Customer data stored in the RDBMS include their name, surname, email address, date of birth, shipping address (we keep it simple shipping and billing addresses are the same), and credit card number. 
 
@@ -78,7 +78,7 @@ Suppliers can check how much of their products has been sold in a given month. T
 
 The system must report the list of unavailable items (sold-out and expired) in a given month; so new products can be bought from the suppliers. 
 
-The system can buy products from suppliers; after buying new products, the products become instantaneously available. The system might buy completely new products or re-stock existing ones.
+The system can buy products from suppliers; after buying new products, the products become instantaneously available. The system might buy only re-stock existing products.
 
 The system reports the top *5* customers that spent the most in a given month, how much did they spent (total), and how many purchases did their do.
 
