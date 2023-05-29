@@ -104,12 +104,12 @@ The recommendation system is a special user of the RDBMS database. It can read s
 
 The recommendation system offers the following APIs:
 
-`bulk_update(order_list) -> None`
-`recommend(products, date, limit) -> List[products]`
+`bulk_update(self, month: int, year: int)`
+`recommend(self, products: List, day: int, month: int, year: int, limit: int):`
 
-The call `bulk_update(order_list) -> None` "imports" data from the RDBMS to build/update the graph. Data may contain duplicate entries; thus, those might be handled properly.
+The call `bulk_update` "imports" data from the RDBMS to build/update the graph. Data may contain duplicate entries; thus, those might be handled properly.
 
-The call `recommend(products, date, limit) -> List[products]` is to generate the recommendations. In a nutshell, given a set of products p1, p2, ..., pn bought by a client c1 on date d1, the system uses the graph database to identify all the products P1, P2, ..., Pk (different than p1, p2, ..., pn) that other clients (c2, ..., cn) have bought together with p1 or p2 or ... pn in the *7* days before the purchase date d1.
+The call `recommend` generates the recommendations. In a nutshell, given a set of products p1, p2, ..., pn bought by a client c1 on date d1, the system uses the graph database to identify all the products P1, P2, ..., Pk (different than p1, p2, ..., pn) that other clients (c2, ..., cn) have bought together with p1 or p2 or ... pn in the *7* days before the purchase date d1.
 
 Those products should be sorted by decreasing popularity, i.e., the amount of times they have been bought within *7* days from the purchase date d1. 
 
