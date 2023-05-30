@@ -3,6 +3,12 @@ from pytest_mysql import factories
 from contextlib import contextmanager
 from neo4j import GraphDatabase
 
+# This factory returns instances of connections to mariadb/mysql servers
+mysql_in_docker = factories.mysql_noproc(host="127.0.0.1", user="root")
+
+# This creates also a db named test... If I am not mistaked, this is deleted after each test execution
+mysql = factories.mysql("mysql_in_docker", passwd="mypass")
+
 
 def pytest_addoption(parser):
     """ Register the additional options to make Neo4j Fixtures work also on GitHub Actions """
@@ -43,11 +49,6 @@ def neo4j_db_host():
     return "localhost"
 
 
-# This factory returns instances of connections to mariadb/mysql servers
-mysql_in_docker = factories.mysql_noproc(host="127.0.0.1", port=3306, user="root")
-
-# This creates also a db named test... If I am not mistaked, this is deleted after each test execution
-mysql = factories.mysql("mysql_in_docker", passwd="mypass")
 
 
 @pytest.fixture
