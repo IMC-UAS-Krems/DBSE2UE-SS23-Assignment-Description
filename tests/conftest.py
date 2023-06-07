@@ -2,12 +2,33 @@ import pytest
 from pytest_mysql import factories
 from contextlib import contextmanager
 from neo4j import GraphDatabase
+from pytest_mysql.executor_noop import NoopMySQLExecutor
+
+
+@pytest.fixture(scope="session")
+def mariadb_host(request):
+    return request.config.getoption("--mysql-host") if request.config.getoption("--mysql-host") is not None else "127.0.0.1"
+
+@pytest.fixture(scope="session")
+def mariadb_port(request):
+    return request.config.getoption("--mysql-port") if request.config.getoption("--mysql-port") is not None else 3306
 
 # This factory returns instances of connections to mariadb/mysql servers
-mysql_in_docker = factories.mysql_noproc(host="127.0.0.1", user="root")
+# mysql_in_docker = factories.mysql_noproc(host=mariadb_host, user="root")
+
+@pytest.fixture(scope="session")
+def mariadb_in_docker(mariadb_host, mariadb_port):
+	mysql_executor = NoopMySQLExecutor(
+            user="root",
+            host=mariadb_host,
+            port=int(mariadb_port),
+        )
+    
+	with mysql_executor:
+         yield mysql_executor
 
 # This creates also a db named test... If I am not mistaked, this is deleted after each test execution
-mysql = factories.mysql("mysql_in_docker", passwd="mypass")
+mysql = factories.mysql("mariadb_in_docker", passwd="mypass")
 
 
 def pytest_addoption(parser):
@@ -19,18 +40,11 @@ def pytest_addoption(parser):
         parser.addoption(
             '--neo4j-bolt-port', action='store', default="", help='Bolt Port to connect to Neo4j'
         )
+        parser.addoption(
+            '--neo4j-host', action='store', default="localhost", help='Bolt Port to connect to Neo4j'
+        )
     except Exception:
         pass
-
-
-@pytest.fixture
-def mariadb_host():
-    return "127.0.0.1"
-
-
-@pytest.fixture
-def mariadb_port(request):
-    return request.config.getoption("--mysql-port")
 
 
 @pytest.fixture
@@ -40,15 +54,12 @@ def mariadb_database():
 
 @pytest.fixture
 def neo4j_db_port(request):
-    bolt_port = request.config.getoption("--neo4j-bolt-port")
-    return bolt_port
+    return request.config.getoption("--neo4j-bolt-port")
 
 
 @pytest.fixture
-def neo4j_db_host():
-    return "localhost"
-
-
+def neo4j_db_host(request):
+	return request.config.getoption("--neo4j-host")
 
 
 @pytest.fixture
@@ -71,7 +82,7 @@ def mariadb(mysql):
 
 
 @pytest.fixture
-def connection_factory(mariadb, pytestconfig):
+def connection_factory(mariadb_host, mariadb_port, mariadb):
     """ This code retuns an ojbect that can create connections to a database """
 
     @contextmanager
@@ -80,10 +91,10 @@ def connection_factory(mariadb, pytestconfig):
         import mysql.connector
         from mysql.connector import Error
         # Try to create the connection, if succeeded eventually close it
-        connection = mysql.connector.connect(host="127.0.0.1",
+        connection = mysql.connector.connect(host=mariadb_host,
                                              database="test",
                                              user="root",
-                                             port=pytestconfig.getoption("--mysql-port") if pytestconfig.getoption("--mysql-port") is not None else 3306,
+                                             port=mariadb_port,
                                              password="mypass")
         try:
             if connection.is_connected():
